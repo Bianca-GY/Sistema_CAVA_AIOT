@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Cava AIoT</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #171b24;
+      color: white;
+    }
+
+    header {
+      background: #252d3b;
+      padding: 25px;
+      text-align: center;
+      border-bottom: 3px solid #b78a48;
+    }
+
+    header h1 {
+      margin: 0;
+      color: #e8c58c;
+    }
+
+    header p {
+      color: #c4cbd5;
+    }
+
+    main {
+      max-width: 950px;
+      margin: 35px auto;
+      padding: 20px;
+    }
+
+    .tarjetas {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .tarjeta {
+      background: #252d3b;
+      padding: 25px;
+      border-radius: 15px;
+      text-align: center;
+      border: 1px solid #414c5e;
+    }
+
+    .tarjeta h2 {
+      color: #e8c58c;
+      font-size: 20px;
+    }
+
+    .valor {
+      font-size: 38px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+
+    .unidad {
+      color: #aab4c2;
+    }
+
+    .control {
+      margin-top: 25px;
+      padding: 30px;
+      background: #252d3b;
+      border-radius: 15px;
+      text-align: center;
+    }
+
+    button {
+      padding: 14px 30px;
+      margin: 10px;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .encender {
+      background: #16864a;
+    }
+
+    .apagar {
+      background: #bd3c3c;
+    }
+
+    .estado {
+      font-size: 23px;
+      font-weight: bold;
+      margin: 20px;
+    }
+
+    .conectado {
+      color: #4ade80;
+    }
+
+    .desconectado {
+      color: #f87171;
+    }
+
+    #mensaje {
+      color: #e8c58c;
+      margin-top: 15px;
+    }
+
+    footer {
+      text-align: center;
+      padding: 25px;
+      color: #aab4c2;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>🍷 Sistema Cava AIoT</h1>
+  <p>Monitoreo inteligente de temperatura y humedad</p>
+  <p>Escuela / Proyecto de Internet de las Cosas</p>
+</header>
+
+<main>
+
+  <div class="tarjetas">
+
+    <div class="tarjeta">
+      <h2>🌡️ Temperatura</h2>
+      <div class="valor" id="temperatura">--</div>
+      <div class="unidad">Grados Celsius (°C)</div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>💧 Humedad</h2>
+      <div class="valor" id="humedad">--</div>
+      <div class="unidad">Humedad relativa (%)</div>
+    </div>
+
+  </div>
+
+  <div class="control">
+
+    <h2>Control del climatizador</h2>
+
+    <div id="estado" class="estado">
+      ESPERANDO CONFIRMACIÓN
+    </div>
+
+    <p id="mensaje">Conectando con Firebase...</p>
+
+    <button class="encender" id="btnEncender" disabled>
+      ENCENDER
+    </button>
+
+    <button class="apagar" id="btnApagar" disabled>
+      APAGAR
+    </button>
+
+  </div>
+
+</main>
+
+<footer>
+  Sistema Cava AIoT | ESP32 + Firebase Realtime Database
+</footer>
+
+<script type="module">
+
+  // IMPORTAR FIREBASE
+  import { initializeApp }
+    from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
+
+  import {
+    getDatabase,
+    ref,
+    onValue,
+    set
+  } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js";
+
+
+  // CONFIGURACION FIREBASE
+  const firebaseConfig = {
+    apiKey: "REEMPLAZAR_POR_API_KEY_WEB_DE_FIREBASE",
+    authDomain: "sistema-cava-aiot.firebaseapp.com",
+    databaseURL: "https://sistema-cava-aiot-default-rtdb.firebaseio.com",
+    projectId: "sistema-cava-aiot",
+    storageBucket: "sistema-cava-aiot.firebasestorage.app",
+    messagingSenderId: "540022182647",
+    appId: "1:540022182647:web:c42cb81c41c3686331f9f2",
+    measurementId: "G-MHFXNCSH2W"
+  };
+
+
+  // INICIALIZAR FIREBASE
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+
+  // RUTAS DE FIREBASE
+  const ambienteRef =
+    ref(db, "bodega/zona_crianza/ambiente");
+
+  const actuadorRef =
+    ref(db, "bodega/zona_crianza/actuadores/extractor_estado");
+
+
+  // ELEMENTOS HTML
+  const temperaturaHTML =
+    document.getElementById("temperatura");
+
+  const humedadHTML =
+    document.getElementById("humedad");
+
+  const estadoHTML =
+    document.getElementById("estado");
+
+  const mensajeHTML =
+    document.getElementById("mensaje");
+
+  const btnEncender =
+    document.getElementById("btnEncender");
+
+  const btnApagar =
+    document.getElementById("btnApagar");
+
+
+  // CONEXION REACTIVA: TEMPERATURA,
+  // HUMEDAD Y CONFIRMACION FISICA
+  onValue(ambienteRef, (snapshot) => {
+
+    const datos = snapshot.val();
+
+    if (datos) {
+
+      temperaturaHTML.textContent =
+        datos.temperatura ?? "--";
+
+      humedadHTML.textContent =
+        datos.humedad ?? "--";
+
+      // EL ESTADO VISUAL DEPENDE
+      // EXCLUSIVAMENTE DEL ACK FISICO
+
+      if (datos.extractor_confirmado === true) {
+
+        estadoHTML.textContent =
+          "ENCENDIDO (FÍSICO)";
+
+        estadoHTML.className =
+          "estado conectado";
+
+      } else if (datos.extractor_confirmado === false) {
+
+        estadoHTML.textContent =
+          "APAGADO (FÍSICO)";
+
+        estadoHTML.className =
+          "estado desconectado";
+
+      } else {
+
+        estadoHTML.textContent =
+          "ESPERANDO CONFIRMACIÓN";
+
+        estadoHTML.className = "estado";
+      }
+
+      mensajeHTML.textContent =
+        "Datos actualizados en tiempo real.";
+
+      btnEncender.disabled = false;
+      btnApagar.disabled = false;
+
+    }
+
+  }, (error) => {
+
+    mensajeHTML.textContent =
+      "Error de Firebase: " + error.message;
+
+  });
+
+
+  // ENVIAR ORDEN PARA ENCENDER
+  btnEncender.addEventListener("click", async () => {
+
+    btnEncender.disabled = true;
+    btnApagar.disabled = true;
+
+    mensajeHTML.textContent =
+      "Enviando orden de encendido...";
+
+    try {
+
+      await set(actuadorRef, true);
+
+      mensajeHTML.textContent =
+        "Orden enviada. Esperando confirmación física del ESP32.";
+
+    } catch (error) {
+
+      mensajeHTML.textContent =
+        "Error al encender: " + error.message;
+
+    } finally {
+
+      btnEncender.disabled = false;
+      btnApagar.disabled = false;
+    }
+
+  });
+
+
+  // ENVIAR ORDEN PARA APAGAR
+  btnApagar.addEventListener("click", async () => {
+
+    btnEncender.disabled = true;
+    btnApagar.disabled = true;
+
+    mensajeHTML.textContent =
+      "Enviando orden de apagado...";
+
+    try {
+
+      await set(actuadorRef, false);
+
+      mensajeHTML.textContent =
+        "Orden enviada. Esperando confirmación física del ESP32.";
+
+    } catch (error) {
+
+      mensajeHTML.textContent =
+        "Error al apagar: " + error.message;
+
+    } finally {
+
+      btnEncender.disabled = false;
+      btnApagar.disabled = false;
+    }
+
+  });
+
+</script>
+
+</body>
+</html>
